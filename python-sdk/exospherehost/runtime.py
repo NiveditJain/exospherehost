@@ -300,13 +300,23 @@ class Runtime:
         Continuously fetches states from the queue, executes the corresponding node,
         and notifies the state manager of the result.
         """
+        node_instances: Dict[str, BaseNode] = {}
         while True:
             state = await self._state_queue.get()
 
             try:
-                node = self._node_mapping[state["node_name"]]
+                node_name = state["node_name"]
+                node_cls = self._node_mapping[node_name]
+                node = node_instances.get(node_name)
+                if node is None:
+                    node = node_cls()
+                    node_instances[node_name] = node
+
                 secrets = await self._get_secrets(state["state_id"])
-                outputs = await node()._execute(node.Inputs(**state["inputs"]), node.Secrets(**secrets["secrets"]))
+                outputs = await node._execute(
+                    node_cls.Inputs(**state["inputs"]),
+                    node_cls.Secrets(**secrets["secrets"]),
+                )
 
                 if outputs is None:
                     outputs = []
